@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Night Shift: Rat Run</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Space+Mono:wght@400;700&display=swap');
+
+    :root {
+      --ink: #e9f2ee;
+      --muted: #8fa9a1;
+      --acid: #d9f743;
+      --coral: #ff704d;
+      --panel: rgba(9, 19, 22, .84);
+      --line: rgba(205, 243, 225, .16);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: #071114; color: var(--ink); }
+    body { font-family: 'Space Mono', monospace; overflow: hidden; }
+
+    .app { min-height: 100vh; display: grid; grid-template-rows: auto 1fr auto; padding: 20px clamp(16px, 4vw, 56px); gap: 14px; }
+    header, footer { width: min(1180px, 100%); margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: end; gap: 20px; }
+    .kicker { color: var(--acid); font-size: 11px; letter-spacing: .2em; text-transform: uppercase; margin-bottom: 5px; }
+    h1 { font-family: 'Barlow Condensed', sans-serif; font-size: clamp(38px, 6vw, 76px); line-height: .82; letter-spacing: .02em; text-transform: uppercase; margin: 0; font-weight: 800; }
+    .subline { color: var(--muted); font-size: 11px; line-height: 1.5; max-width: 360px; text-align: right; }
+
+    main { width: min(1180px, 100%); min-height: 0; margin: 0 auto; position: relative; display: flex; }
+    .stage-wrap { position: relative; flex: 1; min-height: 420px; border: 1px solid var(--line); background: #0a1819; box-shadow: 0 20px 80px rgba(0,0,0,.35); overflow: hidden; }
+    canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+    .hud { position: absolute; inset: 0; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; padding: 16px; }
+    .top-hud { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+    .readout { background: var(--panel); border: 1px solid var(--line); padding: 9px 12px; min-width: 116px; backdrop-filter: blur(8px); }
+    .readout span { display: block; font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: .12em; margin-bottom: 3px; }
+    .readout strong { color: var(--acid); font-size: 20px; font-weight: 700; }
+    .health { display: flex; gap: 4px; margin-top: 6px; }
+    .pip { width: 19px; height: 6px; background: var(--coral); }
+    .pip.empty { background: rgba(255,112,77,.18); }
+    .bottom-hud { display: flex; align-items: end; justify-content: space-between; gap: 18px; }
+    .objective { max-width: 290px; font-size: 11px; line-height: 1.55; color: #d0dfd8; background: var(--panel); border-left: 3px solid var(--acid); padding: 10px 12px; }
+    .objective b { color: var(--acid); }
+    .crosshair { position: absolute; width: 30px; height: 30px; transform: translate(-50%, -50%); border: 1px solid rgba(217,247,67,.85); border-radius: 50%; opacity: 0; pointer-events: none; }
+    .crosshair:after, .crosshair:before { content: ''; position: absolute; background: var(--acid); opacity: .8; }
+    .crosshair:after { width: 1px; height: 42px; top: -7px; left: 14px; }
+    .crosshair:before { width: 42px; height: 1px; top: 14px; left: -7px; }
+    .start-screen, .game-over { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(5, 14, 16, .74); backdrop-filter: blur(4px); z-index: 2; }
+    .modal { width: min(420px, calc(100% - 32px)); border: 1px solid rgba(217,247,67,.5); background: #0c1d1e; padding: 30px; box-shadow: 10px 10px 0 rgba(217,247,67,.12); }
+    .modal h2 { font: 800 clamp(36px, 7vw, 58px)/.85 'Barlow Condensed', sans-serif; text-transform: uppercase; margin: 0 0 16px; }
+    .modal p { color: var(--muted); font-size: 11px; line-height: 1.7; margin: 0 0 24px; }
+    button { appearance: none; border: 0; border-radius: 0; background: var(--acid); color: #0a1617; padding: 13px 18px; font: 700 12px 'Space Mono', monospace; letter-spacing: .04em; cursor: pointer; }
+    button:hover { background: #f0ff82; transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--coral); }
+    footer { display: flex; justify-content: space-between; gap: 20px; color: var(--muted); font-size: 10px; letter-spacing: .04em; }
+    footer b { color: var(--ink); }
+    .hidden { display: none; }
+    @media (max-width: 650px) {
+      .app { padding: 12px; gap: 10px; }
+      header { align-items: start; flex-direction: column; gap: 8px; }
+      .subline { text-align: left; }
+      main { min-height: 0; }
+      .stage-wrap { min-height: 0; height: calc(100vh - 216px); }
+      footer { font-size: 8px; }
+      .objective { display: none; }
+      .readout { min-width: 90px; padding: 7px 9px; }
+      .readout strong { font-size: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div><div class="kicker">Municipal pest control / sector 07</div><h1>Night Shift:<br>Rat Run</h1></div>
+      <div class="subline">The city is quiet. The under-city is not.<br>Keep the streets clean until dawn.</div>
+    </header>
+
+    <main>
+      <div class="stage-wrap" id="stage">
+        <canvas id="game" aria-label="Top-down city rat hunting game"></canvas>
+        <div class="crosshair" id="crosshair"></div>
+        <div class="hud">
+          <div class="top-hud">
+            <div class="readout"><span>Rats cleared</span><strong id="score">000</strong></div>
+            <div class="readout"><span>Wave</span><strong id="wave">01</strong><div class="health" id="health"></div></div>
+          </div>
+          <div class="bottom-hud"><div class="objective"><b>FIELD NOTE</b><br>They can hear you coming. Close the distance, then click to fire.</div><div class="readout"><span>Time on shift</span><strong id="timer">00:00</strong></div></div>
+        </div>
+        <div class="start-screen" id="startScreen"><div class="modal"><div class="kicker">Dispatch // 23:47</div><h2>Make the<br>streets quiet.</h2><p>Rats emerge from the alleys and slowly flee when you get close. Use WASD or arrow keys to move. Aim with the mouse and click to fire.</p><button id="startButton">Start patrol →</button></div></div>
+        <div class="game-over hidden" id="gameOver"><div class="modal"><div class="kicker">Shift report</div><h2 id="endTitle">City still loud.</h2><p><span id="endScore">0</span> rats cleared. Your shift lasted <span id="endTime">00:00</span>. The alleys are already stirring again.</p><button id="restartButton">Run it back →</button></div></div>
+      </div>
+    </main>
+
+    <footer><span><b>MOVE</b> WASD / ARROWS &nbsp; <b>FIRE</b> MOUSE CLICK &nbsp; <b>PAUSE</b> P</span><span>Keep moving. Watch your corners.</span></footer>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const stage = document.getElementById('stage');
+    const crosshair = document.getElementById('crosshair');
+    const scoreEl = document.getElementById('score');
+    const waveEl = document.getElementById('wave');
+    const timerEl = document.getElementById('timer');
+    const healthEl = document.getElementById('health');
+    const startScreen = document.getElementById('startScreen');
+    const gameOver = document.getElementById('gameOver');
+    const keys = new Set();
+    const mouse = { x: 0, y: 0, active: false };
+    let width = 0, height = 0, dpr = 1, last = 0, running = false, paused = false;
+    let score = 0, health = 3, elapsed = 0, spawnClock = 0, wave = 1, rats = [], sparks = [], bullets = [];
+    const player = { x: 0, y: 0, radius: 13, speed: 215, angle: 0, invincible: 0 };
+
+    function resize() {
+      const rect = stage.getBoundingClientRect(); dpr = Math.min(devicePixelRatio || 1, 2);
+      width = rect.width; height = rect.height; canvas.width = width * dpr; canvas.height = height * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (!player.x) { player.x = width / 2; player.y = height / 2; }
+    }
+    function reset() {
+      score = 0; health = 3; elapsed = 0; spawnClock = 1; wave = 1; rats = []; sparks = []; bullets = [];
+      player.x = width / 2; player.y = height / 2; player.invincible = 0; running = true; paused = false;
+      startScreen.classList.add('hidden'); gameOver.classList.add('hidden'); updateHud();
+    }
+    function updateHud() {
+      scoreEl.textContent = String(score).padStart(3, '0'); waveEl.textContent = String(wave).padStart(2, '0');
+      const seconds = Math.floor(elapsed); timerEl.textContent = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+      healthEl.innerHTML = ''; for (let i = 0; i < 3; i++) { const pip = document.createElement('i'); pip.className = `pip ${i >= health ? 'empty' : ''}`; healthEl.appendChild(pip); }
+    }
+    function spawnRat() {
+      const side = Math.floor(Math.random() * 4); const edge = 42;
+      const rat = { x: side === 0 ? edge : side === 1 ? width - edge : 70 + Math.random() * Math.max(1, width - 140), y: side === 2 ? edge : side === 3 ? height - edge : 70 + Math.random() * Math.max(1, height - 140), radius: 10 + Math.random() * 4, speed: 22 + Math.random() * 12, phase: Math.random() * 10, hit: 0 };
+      if (Math.hypot(rat.x - player.x, rat.y - player.y) < 130) return spawnRat(); rats.push(rat);
+    }
+    function burst(x, y, color, count = 8) { for (let i = 0; i < count; i++) sparks.push({ x, y, vx: (Math.random() - .5) * 120, vy: (Math.random() - .5) * 120, life: .4 + Math.random() * .4, color }); }
+    function shoot() {
+      if (!running || paused) return; const angle = Math.atan2(mouse.y - player.y, mouse.x - player.x); player.angle = angle;
+      bullets.push({ x: player.x + Math.cos(angle) * 18, y: player.y + Math.sin(angle) * 18, vx: Math.cos(angle) * 580, vy: Math.sin(angle) * 580, life: .65 }); burst(player.x + Math.cos(angle) * 18, player.y + Math.sin(angle) * 18, '#d9f743', 3);
+    }
+    function hurt() { if (player.invincible > 0) return; health--; player.invincible = 1.4; burst(player.x, player.y, '#ff704d', 18); if (health <= 0) endGame(); }
+    function endGame() { running = false; document.getElementById('endScore').textContent = score; document.getElementById('endTime').textContent = timerEl.textContent; gameOver.classList.remove('hidden'); }
+    function update(dt) {
+      if (!running || paused) return; elapsed += dt; player.invincible -= dt; spawnClock -= dt;
+      wave = Math.floor(score / 8) + 1; const spawnRate = Math.max(.42, 1.18 - wave * .08); if (spawnClock <= 0 && rats.length < 8 + wave * 2) { spawnRat(); spawnClock = spawnRate; }
+      let dx = 0, dy = 0; if (keys.has('ArrowLeft') || keys.has('a')) dx--; if (keys.has('ArrowRight') || keys.has('d')) dx++; if (keys.has('ArrowUp') || keys.has('w')) dy--; if (keys.has('ArrowDown') || keys.has('s')) dy++;
+      if (dx || dy) { const len = Math.hypot(dx, dy); player.x += dx / len * player.speed * dt; player.y += dy / len * player.speed * dt; }
+      player.x = Math.max(18, Math.min(width - 18, player.x)); player.y = Math.max(18, Math.min(height - 18, player.y));
+      rats.forEach(rat => { const toPlayer = Math.atan2(player.y - rat.y, player.x - rat.x); const distance = Math.hypot(player.x - rat.x, player.y - rat.y); const flee = distance < 220 ? toPlayer + Math.PI : toPlayer + Math.PI + Math.sin(elapsed * 3 + rat.phase) * .35; rat.x += Math.cos(flee) * rat.speed * dt; rat.y += Math.sin(flee) * rat.speed * dt; rat.hit -= dt; if (distance < rat.radius + player.radius + 4) hurt(); });
+      bullets.forEach(b => { b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt; });
+      bullets.forEach(b => rats.forEach(r => { if (b.life > 0 && Math.hypot(b.x - r.x, b.y - r.y) < r.radius + 5) { b.life = 0; r.hit = 1; score++; burst(r.x, r.y, '#ff704d', 13); } }));
+      rats = rats.filter(r => !r.hit && r.x > -60 && r.x < width + 60 && r.y > -60 && r.y < height + 60); bullets = bullets.filter(b => b.life > 0); sparks.forEach(s => { s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt; }); sparks = sparks.filter(s => s.life > 0); updateHud();
+    }
+    function drawCity() {
+      ctx.fillStyle = '#0a1718'; ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = 'rgba(181, 222, 197, .08)'; ctx.lineWidth = 1;
+      const grid = 58; for (let x = 0; x < width; x += grid) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); } for (let y = 0; y < height; y += grid) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+      const roads = [{x: width * .28, y: 0, w: 42, h: height}, {x: 0, y: height * .62, w: width, h: 38}, {x: width * .72, y: 0, w: 52, h: height}];
+      roads.forEach(r => { ctx.fillStyle = '#0d2021'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.strokeStyle = 'rgba(217,247,67,.12)'; ctx.setLineDash([10, 18]); ctx.beginPath(); if (r.w > r.h) { ctx.moveTo(0, r.y + r.h / 2); ctx.lineTo(width, r.y + r.h / 2); } else { ctx.moveTo(r.x + r.w / 2, 0); ctx.lineTo(r.x + r.w / 2, height); } ctx.stroke(); ctx.setLineDash([]); });
+      const blocks = [[35,35,160,130],[350,30,165,120],[width-190,30,140,135],[40,height-155,180,100],[width-210,height-145,160,95]];
+      blocks.forEach(([x,y,w,h], i) => { if (x + w > width || y + h > height) return; ctx.fillStyle = i % 2 ? '#152b2b' : '#122526'; ctx.fillRect(x,y,w,h); ctx.strokeStyle = 'rgba(205,243,225,.12)'; ctx.strokeRect(x+.5,y+.5,w-1,h-1); for (let wx = x + 15; wx < x + w - 9; wx += 25) for (let wy = y + 15; wy < y + h - 9; wy += 24) { ctx.fillStyle = Math.random() > .78 ? 'rgba(217,247,67,.35)' : 'rgba(122,174,156,.12)'; ctx.fillRect(wx,wy,7,5); } });
+      ctx.fillStyle = 'rgba(217,247,67,.18)'; ctx.font = '10px Space Mono'; ctx.fillText('EAST MARKET', 16, height - 16); ctx.fillText('CANAL ST', width - 90, 18);
+    }
+    function draw() {
+      drawCity(); rats.forEach(r => { ctx.save(); ctx.translate(r.x, r.y); ctx.rotate(Math.atan2(player.y-r.y, player.x-r.x)); ctx.fillStyle = '#9aa993'; ctx.beginPath(); ctx.ellipse(0,0,r.radius * 1.35,r.radius * .72,0,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#c9d8b4'; ctx.beginPath(); ctx.arc(r.radius*.9,-r.radius*.35,r.radius*.55,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#ff704d'; ctx.fillRect(r.radius*1.1,-r.radius*.48,3,2); ctx.strokeStyle='#9aa993'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(-r.radius,-2); ctx.quadraticCurveTo(-r.radius*1.8, r.radius, -r.radius*2.2, 0); ctx.stroke(); ctx.restore(); });
+      bullets.forEach(b => { ctx.fillStyle = '#d9f743'; ctx.beginPath(); ctx.arc(b.x,b.y,3,0,Math.PI*2); ctx.fill(); });
+      sparks.forEach(s => { ctx.globalAlpha = Math.max(0,s.life); ctx.fillStyle=s.color; ctx.fillRect(s.x,s.y,3,3); }); ctx.globalAlpha=1;
+      ctx.save(); ctx.translate(player.x, player.y); ctx.rotate(player.angle); if (player.invincible > 0 && Math.floor(player.invincible * 10) % 2 === 0) ctx.globalAlpha = .35; ctx.fillStyle='#d9f743'; ctx.beginPath(); ctx.arc(0,0,player.radius,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#091516'; ctx.fillRect(7,-4,20,8); ctx.fillStyle='#e9f2ee'; ctx.beginPath(); ctx.arc(-3,-5,3,0,Math.PI*2); ctx.fill(); ctx.restore();
+    }
+    function loop(time) { const dt = Math.min((time-last)/1000 || 0, .033); last=time; update(dt); draw(); requestAnimationFrame(loop); }
+    window.addEventListener('resize', resize); window.addEventListener('keydown', e => { keys.add(e.key); if (e.key.toLowerCase() === 'p' && running) paused = !paused; }); window.addEventListener('keyup', e => keys.delete(e.key));
+    canvas.addEventListener('mousemove', e => { const r = canvas.getBoundingClientRect(); mouse.x = e.clientX-r.left; mouse.y=e.clientY-r.top; mouse.active=true; player.angle=Math.atan2(mouse.y-player.y, mouse.x-player.x); crosshair.style.left=`${mouse.x}px`; crosshair.style.top=`${mouse.y}px`; crosshair.style.opacity=1; }); canvas.addEventListener('mouseleave', () => crosshair.style.opacity=0); canvas.addEventListener('click', shoot);
+    document.getElementById('startButton').addEventListener('click', reset); document.getElementById('restartButton').addEventListener('click', reset);
+    resize(); updateHud(); requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
